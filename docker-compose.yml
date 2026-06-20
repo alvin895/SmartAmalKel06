@@ -1,0 +1,394 @@
+# Docker Compose Configuration for SMARTAMAL
+# ============================================
+# File untuk orchestration semua services yang diperlukan SMARTAMAL
+# Run: docker-compose up -d
+# Stop: docker-compose down
+# Documentation: https://docs.docker.com/compose/
+
+version: '3.8'
+
+services:
+
+  # ============================================
+  # 1. MYSQL DATABASE
+  # ============================================
+  mysql:
+    image: mysql:8.0-alpine
+    container_name: smartamal-mysql
+    
+    environment:
+      MYSQL_ROOT_PASSWORD: root_password
+      MYSQL_DATABASE: smartamal
+      MYSQL_USER: smartamal_user
+      MYSQL_PASSWORD: smartamal_password
+      TZ: 'Asia/Jakarta'
+    
+    ports:
+      - "3306:3306"
+    
+    volumes:
+      # Init SQL script
+      - ./mysql/init/init.sql:/docker-entrypoint-initdb.d/init.sql
+      
+      # MySQL data persistence
+      - mysql_data:/var/lib/mysql
+      
+      # MySQL config
+      - ./mysql/my.cnf:/etc/mysql/conf.d/my.cnf
+    
+    networks:
+      - smartamal-network
+    
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      timeout: 20s
+      retries: 10
+    
+    restart: unless-stopped
+
+  # ============================================
+  # 2. MQTT MOSQUITTO
+  # ============================================
+  mosquitto:
+    image: eclipse-mosquitto:latest
+    container_name: smartamal-mosquitto
+    
+    ports:
+      - "1883:1883"      # MQTT
+      - "8884:8884"      # WebSocket (optional)
+      - "9001:9001"      # WebSocket alt port
+    
+    volumes:
+      # Mosquitto configuration
+      - ./mqtt/mosquitto.conf:/mosquitto/config/mosquitto.conf
+      
+      # Data persistence
+      - mosquitto_data:/mosquitto/data
+      
+      # Logs
+      - mosquitto_logs:/mosquitto/log
+    
+    networks:
+      - smartamal-network
+    
+    healthcheck:
+      test: ["CMD", "mosquitto_sub", "-h", "localhost", "-t", "$SYS/#"]
+      timeout: 10s
+      retries: 5
+    
+    restart: unless-stopped
+
+  # ============================================
+  # 3. PROMETHEUS - METRICS MONITORING
+  # ============================================
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: smartamal-prometheus
+    
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+    
+    ports:
+      - "9090:9090"
+    
+    volumes:
+      # Prometheus configuration
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
+      
+      # Data storage
+      - prometheus_data:/prometheus
+    
+    networks:
+      - smartamal-network
+    
+    depends_on:
+      - eureka-server
+      - device-service
+      - auth-service
+    
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:9090/-/healthy"]
+      timeout: 10s
+      retries: 5
+    
+    restart: unless-stopped
+
+  # ============================================
+  # 4. GRAFANA - VISUALIZATION & DASHBOARDS
+  # ============================================
+  grafana:
+    image: grafana/grafana:latest
+    container_name: smartamal-grafana
+    
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin_password
+      GF_INSTALL_PLUGINS: grafana-piechart-panel
+      GF_USERS_ALLOW_SIGN_UP: 'false'
+    
+    ports:
+      - "3000:3000"
+    
+    volumes:
+      # Provisioning - dashboards
+      - ./monitoring/grafana/dashboards:/etc/grafana/provisioning/dashboards
+      
+      # Provisioning - datasources
+      - ./monitoring/grafana/datasources:/etc/grafana/provisioning/datasources
+      
+      # Data persistence
+      - grafana_data:/var/lib/grafana
+    
+    networks:
+      - smartamal-network
+    
+    depends_on:
+      - prometheus
+      - elasticsearch
+    
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3000/api/health"]
+      timeout: 10s
+      retries: 5
+    
+    restart: unless-stopped
+
+  # ============================================
+  # 5. ELASTICSEARCH - LOG STORAGE & SEARCH
+  # ============================================
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.0.0
+    container_name: smartamal-elasticsearch
+    
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+    
+    ports:
+      - "9200:9200"
+      - "9300:9300"
+    
+    volumes:
+      # Elasticsearch configuration
+      - ./elasticsearch/elasticsearch.yml:/usr/share/elasticsearch/config/elasticsearch.yml
+      
+      # Data persistence
+      - elasticsearch_data:/usr/share/elasticsearch/data
+    
+    networks:
+      - smartamal-network
+    
+    healthcheck:
+      test: ["CMD-SHELL", "curl -s http://localhost:9200 >/dev/null || exit 1"]
+      timeout: 10s
+      retries: 5
+    
+    restart: unless-stopped
+
+  # ============================================
+  # 6. LOGSTASH - LOG PROCESSING & PIPELINE
+  # ============================================
+  logstash:
+    image: docker.elastic.co/logstash/logstash:8.0.0
+    container_name: smartamal-logstash
+    
+    environment:
+      - "LS_JAVA_OPTS=-Xmx256m -Xms256m"
+    
+    ports:
+      - "5000:5000"
+      - "5044:5044"      # Beats input
+    
+    volumes:
+      # Logstash pipeline configuration
+      - ./logstash/pipeline/logstash.conf:/usr/share/logstash/pipeline/logstash.conf
+      
+      # Logstash data
+      - logstash_data:/usr/share/logstash/data
+    
+    networks:
+      - smartamal-network
+    
+    depends_on:
+      - elasticsearch
+    
+    restart: unless-stopped
+
+  # ============================================
+  # 7. KIBANA - LOG VISUALIZATION & ANALYTICS
+  # ============================================
+  kibana:
+    image: docker.elastic.co/kibana/kibana:8.0.0
+    container_name: smartamal-kibana
+    
+    environment:
+      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+    
+    ports:
+      - "5601:5601"
+    
+    volumes:
+      # Kibana configuration
+      - ./kibana/kibana.yml:/usr/share/kibana/config/kibana.yml
+    
+    networks:
+      - smartamal-network
+    
+    depends_on:
+      - elasticsearch
+    
+    healthcheck:
+      test: ["CMD-SHELL", "curl -s http://localhost:5601/api/status >/dev/null || exit 1"]
+      timeout: 10s
+      retries: 5
+    
+    restart: unless-stopped
+
+  # ============================================
+  # 8. NGINX - REVERSE PROXY
+  # ============================================
+  nginx:
+    image: nginx:alpine
+    container_name: smartamal-nginx
+    
+    ports:
+      - "80:80"
+      # - "443:443"      # Uncomment untuk HTTPS
+    
+    volumes:
+      # Nginx configuration
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      
+      # SSL certificates (opsional untuk production)
+      # - ./nginx/ssl:/etc/nginx/ssl:ro
+    
+    networks:
+      - smartamal-network
+    
+    depends_on:
+      - auth-service
+      - device-service
+    
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost/health"]
+      timeout: 10s
+      retries: 5
+    
+    restart: unless-stopped
+
+  # ============================================
+  # BACKEND SERVICES (JAVA)
+  # ============================================
+  # Note: Uncomment dan configure berikut jika ingin run via docker-compose
+  # Sesuaikan dengan Dockerfile di masing-masing service
+
+  # eureka-server:
+  #   build:
+  #     context: ./eureka-server
+  #     dockerfile: Dockerfile
+  #   container_name: smartamal-eureka-server
+  #   environment:
+  #     SPRING_APPLICATION_NAME: eureka-server
+  #   ports:
+  #     - "8761:8761"
+  #   networks:
+  #     - smartamal-network
+  #   restart: unless-stopped
+
+  # auth-service:
+  #   build:
+  #     context: ./auth-service
+  #     dockerfile: Dockerfile
+  #   container_name: smartamal-auth-service
+  #   environment:
+  #     SPRING_APPLICATION_NAME: auth-service
+  #     SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/db_auth
+  #   ports:
+  #     - "8081:8081"
+  #   depends_on:
+  #     - mysql
+  #     - eureka-server
+  #   networks:
+  #     - smartamal-network
+  #   restart: unless-stopped
+
+  # device-service:
+  #   build:
+  #     context: ./device-service
+  #     dockerfile: Dockerfile
+  #   container_name: smartamal-device-service
+  #   environment:
+  #     SPRING_APPLICATION_NAME: device-service
+  #     SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/db_device
+  #   ports:
+  #     - "8082:8082"
+  #   depends_on:
+  #     - mysql
+  #     - eureka-server
+  #     - mosquitto
+  #   networks:
+  #     - smartamal-network
+  #   restart: unless-stopped
+
+# ============================================
+# NETWORKS
+# ============================================
+networks:
+  smartamal-network:
+    driver: bridge
+
+# ============================================
+# VOLUMES
+# ============================================
+volumes:
+  mysql_data:
+  mosquitto_data:
+  mosquitto_logs:
+  prometheus_data:
+  grafana_data:
+  elasticsearch_data:
+  logstash_data:
+
+# ============================================
+# NOTES
+# ============================================
+# 1. Update passwords untuk production (MySQL root, Grafana admin)
+# 2. Services default ports:
+#    - MySQL: 3306
+#    - MQTT: 1883
+#    - Prometheus: 9090
+#    - Grafana: 3000
+#    - Elasticsearch: 9200
+#    - Kibana: 5601
+#    - Nginx: 80
+#
+# 3. Akses services:
+#    - Grafana: http://localhost:3000 (user: admin, password: admin_password)
+#    - Prometheus: http://localhost:9090
+#    - Kibana: http://localhost:5601
+#    - Nginx: http://localhost
+#
+# 4. Untuk uncomment Java services:
+#    - Update path context dan dockerfile sesuai struktur folder
+#    - Pastikan Java services sudah di-build (mvn clean package)
+#    - Update database URLs sesuai dengan MySQL configuration
+#
+# 5. Commands:
+#    - Start: docker-compose up -d
+#    - Stop: docker-compose down
+#    - View logs: docker-compose logs -f [service_name]
+#    - Rebuild: docker-compose up -d --build
+#    - Remove volumes: docker-compose down -v
+#
+# 6. Production considerations:
+#    - Use environment variables untuk sensitive data
+#    - Enable HTTPS dengan reverse proxy
+#    - Setup monitoring & alerting
+#    - Configure logging & log rotation
+#    - Setup backup & disaster recovery
+#    - Use named volumes untuk persistence
+#    - Configure resource limits

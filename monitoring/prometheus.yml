@@ -1,0 +1,96 @@
+# Prometheus Configuration for SMARTAMAL
+# ========================================
+# File untuk konfigurasi Prometheus yang mengumpulkan metrics dari services
+# Dokumentasi: https://prometheus.io/docs/prometheus/latest/configuration/configuration/
+
+global:
+  # Interval pengumpulan metrics
+  scrape_interval: 15s
+  
+  # Timeout untuk setiap scrape request
+  scrape_timeout: 10s
+  
+  # Interval evaluasi alerting rules
+  evaluation_interval: 15s
+
+# File untuk alerting rules (opsional)
+# alerting:
+#   alertmanagers:
+#     - static_configs:
+#         - targets:
+#             - alertmanager:9093
+
+# ============================================
+# SCRAPE CONFIGURATIONS
+# ============================================
+scrape_configs:
+
+  # ============================================
+  # 1. PROMETHEUS SELF MONITORING
+  # ============================================
+  - job_name: 'prometheus'
+    # Override global settings untuk job ini
+    scrape_interval: 5s
+    static_configs:
+      - targets: ['localhost:9090']
+
+  # ============================================
+  # 2. EUREKA SERVER (Service Registry)
+  # ============================================
+  # Port: 8761
+  - job_name: 'eureka-server'
+    scrape_interval: 15s
+    static_configs:
+      - targets: ['eureka-server:8761']
+    # Metrics endpoint
+    metrics_path: '/actuator/prometheus'
+
+  # ============================================
+  # 3. DEVICE SERVICE
+  # ============================================
+  # Port: 8082
+  - job_name: 'device-service'
+    scrape_interval: 15s
+    static_configs:
+      - targets: ['device-service:8082']
+    metrics_path: '/actuator/prometheus'
+
+  # ============================================
+  # 4. AUTH SERVICE
+  # ============================================
+  # Port: 8081
+  - job_name: 'auth-service'
+    scrape_interval: 15s
+    static_configs:
+      - targets: ['auth-service:8081']
+    metrics_path: '/actuator/prometheus'
+
+  # ============================================
+  # 5. ACCESS CONTROL SERVICE
+  # ============================================
+  # Port: 8083
+  # NOTE: Service ini akan diimplementasikan manual oleh tim
+  - job_name: 'access-control-service'
+    scrape_interval: 15s
+    static_configs:
+      - targets: ['access-control-service:8083']
+    metrics_path: '/actuator/prometheus'
+
+  # ============================================
+  # 6. NOTIFICATION SERVICE
+  # ============================================
+  # Port: 8084
+  # NOTE: Service ini akan diimplementasikan manual oleh tim
+  - job_name: 'notification-service'
+    scrape_interval: 15s
+    static_configs:
+      - targets: ['notification-service:8084']
+    metrics_path: '/actuator/prometheus'
+
+# ============================================
+# NOTES
+# ============================================
+# 1. Pastikan semua services mengexpose metrics di /actuator/prometheus
+# 2. Port yang digunakan harus sesuai dengan konfigurasi spring.application.name di setiap service
+# 3. Untuk production, gunakan service discovery (consul, eureka, file_sd, dll)
+# 4. Konfigurasi alerting dapat ditambahkan sesuai kebutuhan monitoring
