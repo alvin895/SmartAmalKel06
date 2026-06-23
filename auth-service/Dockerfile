@@ -11,8 +11,8 @@ FROM eclipse-temurin:17-jre-alpine
 
 WORKDIR /app
 
-COPY --from=builder /build/target/eureka-server-*.jar app.jar
+COPY --from=builder /build/target/auth-service-*.jar app.jar
 
-EXPOSE 8761
+EXPOSE 8082
 
 ENTRYPOINT ["java", "-jar", "app.jar"]
