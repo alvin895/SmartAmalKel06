@@ -2,6 +2,7 @@ package com.smartamal.notification.security;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
@@ -13,33 +14,34 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class SecurityConfig {
 
-    private final JwtAuthenticationFilter
-            jwtAuthenticationFilter;
+    private final JwtAuthenticationFilter jwtAuthenticationFilter;
 
     @Bean
-    public SecurityFilterChain
-    securityFilterChain(
-            HttpSecurity http)
+    public SecurityFilterChain securityFilterChain(HttpSecurity http)
             throws Exception {
 
         http
-                .csrf(csrf ->
-                        csrf.disable())
+                .csrf(csrf -> csrf.disable())
 
-                .authorizeHttpRequests(
-                        auth -> auth
+                .authorizeHttpRequests(auth -> auth
 
-                                .requestMatchers(
-                                        "/actuator/**")
-                                .permitAll()
+                        // Actuator
+                        .requestMatchers("/actuator/**")
+                        .permitAll()
 
-                                .anyRequest()
-                                .authenticated())
+                        // Internal Communication (Device -> Notification)
+                        .requestMatchers(
+                                HttpMethod.POST,
+                                "/api/notifications")
+                        .permitAll()
 
-                .sessionManagement(
-                        session ->
-                                session.sessionCreationPolicy(
-                                        SessionCreationPolicy.STATELESS))
+                        // Endpoint lainnya tetap wajib JWT
+                        .anyRequest()
+                        .authenticated())
+
+                .sessionManagement(session ->
+                        session.sessionCreationPolicy(
+                                SessionCreationPolicy.STATELESS))
 
                 .addFilterBefore(
                         jwtAuthenticationFilter,

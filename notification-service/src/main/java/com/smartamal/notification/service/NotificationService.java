@@ -1,66 +1,160 @@
 package com.smartamal.notification.service;
 
 import java.util.List;
+import java.util.stream.Collectors;
 
 import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.stereotype.Service;
 
 import com.smartamal.notification.dto.NotificationRequest;
+import com.smartamal.notification.dto.NotificationResponse;
 import com.smartamal.notification.model.Notification;
 import com.smartamal.notification.repository.NotificationRepository;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class NotificationService {
 
     private final NotificationRepository notificationRepository;
 
     private final JavaMailSender mailSender;
 
+    // =====================================================
     // CREATE NOTIFICATION
-    public Notification createNotification(
+    // =====================================================
+
+    public NotificationResponse createNotification(NotificationRequest request) {
+
+        Notification notification = Notification.builder()
+                .title(request.getTitle())
+                .message(request.getMessage())
+                .type(request.getType())
+                .status("PENDING")
+                .recipientEmail(request.getRecipientEmail())
+                .build();
+
+        Notification saved = notificationRepository.save(notification);
+
+        if (request.getRecipientEmail() != null &&
+                !request.getRecipientEmail().isBlank()) {
+
+            try {
+
+                sendEmail(
+                        request.getRecipientEmail(),
+                        request.getTitle(),
+                        request.getMessage());
+
+                saved.setStatus("SENT");
+
+                notificationRepository.save(saved);
+
+                log.info("Email berhasil dikirim ke {}",
+                        request.getRecipientEmail());
+
+            } catch (Exception e) {
+
+                e.printStackTrace();
+
+                log.error(
+                        "Gagal mengirim email : {}",
+                        e.getMessage());
+
+                saved.setStatus("FAILED");
+
+                notificationRepository.save(saved);
+            }
+
+        }
+
+        return mapToResponse(saved);
+    }
+
+    // =====================================================
+    // GET ALL
+    // =====================================================
+
+    public List<NotificationResponse> getAllNotifications() {
+
+        return notificationRepository.findAll()
+                .stream()
+                .map(this::mapToResponse)
+                .collect(Collectors.toList());
+
+    }
+
+    // =====================================================
+    // GET BY ID
+    // =====================================================
+
+    public NotificationResponse getNotificationById(Long id) {
+
+        Notification notification =
+                notificationRepository.findById(id)
+                        .orElseThrow(() ->
+                                new RuntimeException(
+                                        "Notification tidak ditemukan"));
+
+        return mapToResponse(notification);
+
+    }
+
+    // =====================================================
+    // UPDATE
+    // =====================================================
+
+    public NotificationResponse updateNotification(
+            Long id,
             NotificationRequest request) {
 
         Notification notification =
-                new Notification();
+                notificationRepository.findById(id)
+                        .orElseThrow(() ->
+                                new RuntimeException(
+                                        "Notification tidak ditemukan"));
 
-        notification.setTitle(
-                request.getTitle());
+        notification.setTitle(request.getTitle());
 
-        notification.setMessage(
-                request.getMessage());
+        notification.setMessage(request.getMessage());
 
-        notification.setType(
-                request.getType());
+        notification.setType(request.getType());
 
         notification.setRecipientEmail(
                 request.getRecipientEmail());
 
-        notification.setStatus(
-                "SENT");
+        Notification updated =
+                notificationRepository.save(notification);
 
-        Notification savedNotification =
-                notificationRepository.save(
-                        notification);
+        return mapToResponse(updated);
 
-        // KIRIM EMAIL JIKA ADA EMAIL TUJUAN
-        if (request.getRecipientEmail() != null
-                && !request.getRecipientEmail().isEmpty()) {
-
-            sendEmail(
-                    request.getRecipientEmail(),
-                    request.getTitle(),
-                    request.getMessage());
-        }
-
-        return savedNotification;
     }
 
+    // =====================================================
+    // DELETE
+    // =====================================================
+
+    public void deleteNotification(Long id) {
+
+        Notification notification =
+                notificationRepository.findById(id)
+                        .orElseThrow(() ->
+                                new RuntimeException(
+                                        "Notification tidak ditemukan"));
+
+        notificationRepository.delete(notification);
+
+    }
+
+    // =====================================================
     // SEND EMAIL
-    public void sendEmail(
+    // =====================================================
+
+    private void sendEmail(
             String to,
             String subject,
             String message) {
@@ -69,61 +163,42 @@ public class NotificationService {
                 new SimpleMailMessage();
 
         mail.setTo(to);
+
         mail.setSubject(subject);
+
         mail.setText(message);
 
         mailSender.send(mail);
+
     }
 
-    // GET ALL
-    public List<Notification> getAllNotifications() {
+    // =====================================================
+    // ENTITY -> RESPONSE
+    // =====================================================
 
-        return notificationRepository.findAll();
+    private NotificationResponse mapToResponse(
+            Notification notification) {
+
+        return NotificationResponse.builder()
+
+                .id(notification.getId())
+
+                .title(notification.getTitle())
+
+                .message(notification.getMessage())
+
+                .type(notification.getType())
+
+                .status(notification.getStatus())
+
+                .recipientEmail(
+                        notification.getRecipientEmail())
+
+                .createdAt(
+                        notification.getCreatedAt())
+
+                .build();
+
     }
 
-    // GET BY ID
-    public Notification getNotificationById(
-            Long id) {
-
-        return notificationRepository
-                .findById(id)
-                .orElseThrow(() ->
-                        new RuntimeException(
-                                "Notification tidak ditemukan"));
-    }
-
-    // UPDATE
-    public Notification updateNotification(
-            Long id,
-            NotificationRequest request) {
-
-        Notification notification =
-                getNotificationById(id);
-
-        notification.setTitle(
-                request.getTitle());
-
-        notification.setMessage(
-                request.getMessage());
-
-        notification.setType(
-                request.getType());
-
-        notification.setRecipientEmail(
-                request.getRecipientEmail());
-
-        return notificationRepository.save(
-                notification);
-    }
-
-    // DELETE
-    public void deleteNotification(
-            Long id) {
-
-        Notification notification =
-                getNotificationById(id);
-
-        notificationRepository.delete(
-                notification);
-    }
 }

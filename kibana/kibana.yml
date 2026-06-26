@@ -1,116 +1,41 @@
-# Kibana Configuration for SMARTAMAL
-# ===================================
-# File untuk konfigurasi Kibana yang digunakan untuk visualisasi dan explorasi logs
-# Dokumentasi: https://www.elastic.co/guide/en/kibana/current/settings.html
+# =====================================================
+# SMART AMAL KIBANA
+# =====================================================
 
-# ============================================
-# KIBANA SERVER CONFIGURATION
-# ============================================
+server.name: kibana
 
-# Server host - interface untuk binding
 server.host: "0.0.0.0"
 
-# Server port
 server.port: 5601
 
-# Server basePath untuk Kibana (jika behind reverse proxy)
-# server.basePath: "/kibana"
+# =====================================================
+# ELASTICSEARCH
+# =====================================================
 
-# Public base URL
-# server.publicBaseUrl: "http://localhost:5601"
+elasticsearch.hosts:
+  - "http://elasticsearch:9200"
 
-# ============================================
-# ELASTICSEARCH CONNECTION
-# ============================================
+# =====================================================
+# MONITORING
+# =====================================================
 
-# Elasticsearch hosts - URL untuk mengakses Elasticsearch
-elasticsearch.hosts: ["http://elasticsearch:9200"]
+monitoring.ui.container.elasticsearch.enabled: true
 
-# Elasticsearch username dan password (jika security enabled)
-# elasticsearch.username: "elastic"
-# elasticsearch.password: "password"
+# =====================================================
+# INTERNATIONALIZATION
+# =====================================================
 
-# Connection timeout
-elasticsearch.requestTimeout: 30000
+i18n.locale: "en"
 
-# ============================================
-# DEFAULT INDEX PATTERN
-# ============================================
-
-# Default index pattern untuk logs
-kibana.defaultAppId: "discover"
-
-# Pattern untuk discover - akan otomatis membuat index pattern
-# Pattern harus match dengan Logstash output (smartamal-logs-*)
-# kibana.index: ".kibana"
-
-# ============================================
+# =====================================================
 # LOGGING
-# ============================================
+# =====================================================
 
-# Log level (trace, debug, info, warn, error, fatal)
-logging.level: info
+logging.root.level: info
 
-# Pretty print logs
-logging.pretty: false
+logging.appenders.default.type: console
 
-# ============================================
-# XPACK FEATURES (OPTIONAL)
-# ============================================
-# Uncomment untuk enable Elastic Stack features (memerlukan license):
+logging.appenders.default.layout.type: json
 
-# xpack.security.enabled: true
-# xpack.spaces.enabled: true
-# xpack.reporting.enabled: true
-# xpack.alerting.enabled: true
-# xpack.actions.enabled: true
-
-# ============================================
-# ADVANCED SETTINGS
-# ============================================
-
-# Number of Kibana instances
-# kibana.numberOfHosts: 1
-
-# Session timeout (dalam milliseconds)
-# session.idleTimeout: 1200000
-
-# Session timeout warning (dalam milliseconds)
-# session.warnTimeout: 1200000
-
-# ============================================
-# MONITORING & TELEMETRY (OPTIONAL)
-# ============================================
-
-# Send Kibana statistics ke Elasticsearch
-# monitoring.kibana.collection.enabled: true
-
-# Disable usage statistics tracking
-# telemetry.enabled: false
-
-# ============================================
-# UI CUSTOMIZATION (OPTIONAL)
-# ============================================
-
-# Customize Kibana branding
-# uiSettings.overrides:
-#   "defaultIndex": "smartamal-logs-*"
-#   "dateFormat": "YYYY-MM-DD HH:mm:ss"
-#   "theme:darkMode": false
-
-# ============================================
-# NOTES
-# ============================================
-# 1. Pastikan Elasticsearch sudah running sebelum start Kibana
-# 2. Akses Kibana melalui http://localhost:5601
-# 3. Buat index pattern untuk "smartamal-logs-*" di Kibana UI:
-#    - Buka Management > Index Patterns
-#    - Click Create Index Pattern
-#    - Pattern: smartamal-logs-*
-#    - Time field: @timestamp
-# 4. Untuk production:
-#    - Enable security (authentication & authorization)
-#    - Setup HTTPS dengan certificate
-#    - Configure monitoring dan alerting
-#    - Setup backup & disaster recovery
-# 5. Untuk reverse proxy (nginx/apache), uncomment server.basePath dan server.publicBaseUrl
+logging.root.appenders:
+  - default

@@ -13,7 +13,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.smartamal.notification.dto.NotificationRequest;
-import com.smartamal.notification.model.Notification;
+import com.smartamal.notification.dto.NotificationResponse;
 import com.smartamal.notification.service.NotificationService;
 
 import jakarta.validation.Valid;
@@ -26,65 +26,61 @@ public class NotificationController {
 
     private final NotificationService notificationService;
 
-    // CREATE
+    // ==========================
+    // CREATE NOTIFICATION
+    // ==========================
     @PostMapping
-    public ResponseEntity<Notification>
-    createNotification(
-            @Valid @RequestBody
-            NotificationRequest request) {
+    public ResponseEntity<NotificationResponse> createNotification(
+            @Valid @RequestBody NotificationRequest request) {
 
         return ResponseEntity.ok(
-                notificationService
-                        .createNotification(
-                                request));
+                notificationService.createNotification(request));
     }
 
-    // GET ALL
+    // ==========================
+    // GET ALL NOTIFICATIONS
+    // ==========================
     @GetMapping
-    public ResponseEntity<List<Notification>>
-    getAllNotifications() {
+    public ResponseEntity<List<NotificationResponse>> getAllNotifications() {
 
         return ResponseEntity.ok(
-                notificationService
-                        .getAllNotifications());
+                notificationService.getAllNotifications());
     }
 
-    // GET BY ID
+    // ==========================
+    // GET NOTIFICATION BY ID
+    // ==========================
     @GetMapping("/{id}")
-    public ResponseEntity<Notification>
-    getNotificationById(
+    public ResponseEntity<NotificationResponse> getNotificationById(
             @PathVariable Long id) {
 
         return ResponseEntity.ok(
-                notificationService
-                        .getNotificationById(id));
+                notificationService.getNotificationById(id));
     }
 
-    // UPDATE
+    // ==========================
+    // UPDATE NOTIFICATION
+    // ==========================
     @PutMapping("/{id}")
-    public ResponseEntity<Notification>
-    updateNotification(
+    public ResponseEntity<NotificationResponse> updateNotification(
             @PathVariable Long id,
-            @RequestBody
-            NotificationRequest request) {
+            @Valid @RequestBody NotificationRequest request) {
 
         return ResponseEntity.ok(
-                notificationService
-                        .updateNotification(
-                                id,
-                                request));
+                notificationService.updateNotification(id, request));
     }
 
-    // DELETE
+    // ==========================
+    // DELETE NOTIFICATION
+    // ==========================
     @DeleteMapping("/{id}")
-    public ResponseEntity<String>
-    deleteNotification(
+    public ResponseEntity<String> deleteNotification(
             @PathVariable Long id) {
 
-        notificationService
-                .deleteNotification(id);
+        notificationService.deleteNotification(id);
 
         return ResponseEntity.ok(
                 "Notification berhasil dihapus");
     }
+
 }

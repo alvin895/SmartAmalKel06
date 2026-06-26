@@ -1,97 +1,25 @@
-# Elasticsearch Configuration for SMARTAMAL
-# ==========================================
-# File untuk konfigurasi Elasticsearch yang digunakan untuk centralized logging
-# Dokumentasi: https://www.elastic.co/guide/en/elasticsearch/reference/current/settings.html
+# =====================================================
+# SMART AMAL ELASTICSEARCH
+# =====================================================
 
-# ============================================
-# CLUSTER CONFIGURATION
-# ============================================
-
-# Cluster name - pastikan sama untuk semua node dalam cluster
 cluster.name: smartamal-cluster
 
-# ============================================
-# NODE CONFIGURATION
-# ============================================
+node.name: smartamal-node
 
-# Node name - identifier unik untuk node ini
-node.name: es-node-1
+network.host: 0.0.0.0
 
-# Node roles - untuk single node cluster, tidak perlu dikonfigurasi
-# Uncomment jika menggunakan multi-node cluster:
-# node.roles: [master, data, ingest]
-
-# ============================================
-# SINGLE NODE CLUSTER CONFIGURATION
-# ============================================
-# Untuk development/testing single-node cluster
+http.port: 9200
 
 discovery.type: single-node
 
-# ============================================
-# NETWORK CONFIGURATION
-# ============================================
+xpack.security.enabled: false
 
-# Network host - interface untuk binding
-network.host: 0.0.0.0
+xpack.security.enrollment.enabled: false
 
-# HTTP port untuk REST API
-http.port: 9200
+xpack.security.http.ssl.enabled: false
 
-# Transport port (inter-node communication)
-transport.port: 9300
+xpack.security.transport.ssl.enabled: false
 
-# ============================================
-# MEMORY & PERFORMANCE
-# ============================================
+bootstrap.memory_lock: true
 
-# Disable memory swapping untuk performa optimal
-bootstrap.memory_lock: false
-
-# JVM heap size dipengatur melalui environment variables:
-# ES_JAVA_OPTS=-Xms512m -Xmx512m
-
-# ============================================
-# PATH CONFIGURATION
-# ============================================
-
-# Path untuk data storage
-path.data: /usr/share/elasticsearch/data
-
-# Path untuk logs
-path.logs: /usr/share/elasticsearch/logs
-
-# ============================================
-# INDEX SETTINGS
-# ============================================
-
-# Jumlah shard default untuk index baru
-index.number_of_shards: 1
-
-# Jumlah replica default untuk index baru
-# Single node cluster harus 0, karena tidak ada node lain untuk replica
-index.number_of_replicas: 0
-
-# ============================================
-# SECURITY (OPSIONAL - UNTUK PRODUCTION)
-# ============================================
-# Uncomment untuk enable security features:
-
-# xpack.security.enabled: true
-# xpack.security.enrollment.enabled: true
-
-# ============================================
-# MONITORING (OPSIONAL)
-# ============================================
-# Uncomment untuk enable monitoring:
-
-# xpack.monitoring.collection.enabled: true
-
-# ============================================
-# NOTES
-# ============================================
-# 1. Untuk development: gunakan default settings ini
-# 2. Untuk production multi-node: update discovery.type dan node.roles
-# 3. Pastikan vm.max_map_count >= 262144 di host system
-# 4. Monitor disk space - Elasticsearch membutuhkan space yang cukup untuk data
-# 5. Backup data secara regular untuk production environment
+action.auto_create_index: true

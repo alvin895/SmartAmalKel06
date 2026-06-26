@@ -1,394 +1,634 @@
-# Docker Compose Configuration for SMARTAMAL
-# ============================================
-# File untuk orchestration semua services yang diperlukan SMARTAMAL
-# Run: docker-compose up -d
-# Stop: docker-compose down
-# Documentation: https://docs.docker.com/compose/
-
-version: '3.8'
+version: "3.9"
 
 services:
 
-  # ============================================
-  # 1. MYSQL DATABASE
-  # ============================================
+# =====================================================
+# MYSQL
+# =====================================================
+
+# =====================================================
+# MYSQL
+# =====================================================
+
   mysql:
-    image: mysql:8.0-alpine
+
+    image: mysql:8.4
+
     container_name: smartamal-mysql
-    
+
+    restart: unless-stopped
+
     environment:
-      MYSQL_ROOT_PASSWORD: root_password
-      MYSQL_DATABASE: smartamal
-      MYSQL_USER: smartamal_user
-      MYSQL_PASSWORD: smartamal_password
-      TZ: 'Asia/Jakarta'
-    
+
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+
+      TZ: Asia/Jakarta
+
     ports:
+
       - "3306:3306"
-    
+
     volumes:
-      # Init SQL script
-      - ./mysql/init/init.sql:/docker-entrypoint-initdb.d/init.sql
-      
-      # MySQL data persistence
-      - mysql_data:/var/lib/mysql
-      
-      # MySQL config
-      - ./mysql/my.cnf:/etc/mysql/conf.d/my.cnf
-    
-    networks:
-      - smartamal-network
-    
+
+      - mysql-data:/var/lib/mysql
+
+      - ./mysql/init:/docker-entrypoint-initdb.d
+
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
-      timeout: 20s
+
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-p${MYSQL_ROOT_PASSWORD}"]
+
+      interval: 10s
+
+      timeout: 5s
+
       retries: 10
-    
-    restart: unless-stopped
 
-  # ============================================
-  # 2. MQTT MOSQUITTO
-  # ============================================
+      start_period: 30s
+
+    networks:
+
+      - smartamal-network
+
+# =====================================================
+# MQTT
+# =====================================================
+
+ # =====================================================
+# MQTT (Mosquitto)
+# =====================================================
+
   mosquitto:
-    image: eclipse-mosquitto:latest
+
+    image: eclipse-mosquitto:2
+
     container_name: smartamal-mosquitto
-    
+
+    hostname: mosquitto
+
+    restart: unless-stopped
+
     ports:
-      - "1883:1883"      # MQTT
-      - "8884:8884"      # WebSocket (optional)
-      - "9001:9001"      # WebSocket alt port
-    
+
+      - "1883:1883"
+
+      - "9001:9001"
+
     volumes:
-      # Mosquitto configuration
+
       - ./mqtt/mosquitto.conf:/mosquitto/config/mosquitto.conf
-      
-      # Data persistence
-      - mosquitto_data:/mosquitto/data
-      
-      # Logs
-      - mosquitto_logs:/mosquitto/log
-    
+
+      - mosquitto-data:/mosquitto/data
+
+      - mosquitto-log:/mosquitto/log
+
     networks:
+
       - smartamal-network
-    
-    healthcheck:
-      test: ["CMD", "mosquitto_sub", "-h", "localhost", "-t", "$SYS/#"]
-      timeout: 10s
-      retries: 5
-    
+
+    # =====================================================
+# EUREKA SERVER
+# =====================================================
+
+ # =====================================================
+# EUREKA SERVER
+# =====================================================
+
+  eureka-server:
+
+    build:
+      context: ./eureka-server
+
+    container_name: eureka-server
+
+    hostname: eureka-server
+
     restart: unless-stopped
 
-  # ============================================
-  # 3. PROMETHEUS - METRICS MONITORING
-  # ============================================
-  prometheus:
-    image: prom/prometheus:latest
-    container_name: smartamal-prometheus
-    
-    command:
-      - '--config.file=/etc/prometheus/prometheus.yml'
-      - '--storage.tsdb.path=/prometheus'
-      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
-      - '--web.console.templates=/usr/share/prometheus/consoles'
-    
     ports:
-      - "9090:9090"
-    
-    volumes:
-      # Prometheus configuration
-      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
-      
-      # Data storage
-      - prometheus_data:/prometheus
-    
+
+      - "8761:8761"
+
+    environment:
+
+      SPRING_APPLICATION_NAME: eureka-server
+
+      SERVER_PORT: 8761
+
+    healthcheck:
+
+      test: ["CMD", "curl", "-f", "http://localhost:8761"]
+
+      interval: 15s
+
+      timeout: 5s
+
+      retries: 10
+
+      start_period: 30s
+
     networks:
+
       - smartamal-network
-    
+# =====================================================
+# API GATEWAY
+# =====================================================
+
+  # =====================================================
+# API GATEWAY
+# =====================================================
+
+  api-gateway:
+
+    build:
+      context: ./api-gateway
+
+    container_name: api-gateway
+
+    hostname: api-gateway
+
+    restart: unless-stopped
+
     depends_on:
+
       - eureka-server
-      - device-service
-      - auth-service
-    
-    healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:9090/-/healthy"]
-      timeout: 10s
-      retries: 5
-    
+
+    ports:
+
+      - "9090:9090"
+
+    environment:
+
+      SPRING_APPLICATION_NAME: api-gateway
+
+      SERVER_PORT: 9090
+
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://eureka-server:8761/eureka
+
+    networks:
+
+      - smartamal-network
+# =====================================================
+# AUTH SERVICE
+# =====================================================
+
+  # =====================================================
+# AUTH SERVICE
+# =====================================================
+
+  auth-service:
+
+    build:
+      context: ./auth-service
+
+    container_name: auth-service
+
+    hostname: auth-service
+
     restart: unless-stopped
 
-  # ============================================
-  # 4. GRAFANA - VISUALIZATION & DASHBOARDS
-  # ============================================
+    depends_on:
+
+      - mysql
+
+      - eureka-server
+
+    ports:
+
+      - "8082:8082"
+
+    environment:
+
+      SPRING_APPLICATION_NAME: auth-service
+
+      SERVER_PORT: 8082
+
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/db_auth
+
+      SPRING_DATASOURCE_USERNAME: root
+
+      SPRING_DATASOURCE_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+
+      JWT_SECRET: ${JWT_SECRET}
+
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://eureka-server:8761/eureka
+
+    networks:
+
+      - smartamal-network
+      # =====================================================
+# NOTIFICATION SERVICE
+# =====================================================
+
+  # =====================================================
+# NOTIFICATION SERVICE
+# =====================================================
+
+  notification-service:
+
+    build:
+      context: ./notification-service
+
+    container_name: notification-service
+
+    hostname: notification-service
+
+    restart: unless-stopped
+
+    depends_on:
+
+      - mysql
+
+      - eureka-server
+
+    ports:
+
+      - "8083:8083"
+
+    environment:
+
+      SPRING_APPLICATION_NAME: notification-service
+
+      SERVER_PORT: 8083
+
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/db_notification
+
+      SPRING_DATASOURCE_USERNAME: root
+
+      SPRING_DATASOURCE_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+
+      SPRING_MAIL_HOST: smtp.gmail.com
+
+      SPRING_MAIL_PORT: 587
+
+      SPRING_MAIL_USERNAME: ${MAIL_USERNAME}
+
+      SPRING_MAIL_PASSWORD: ${MAIL_PASSWORD}
+
+      SPRING_MAIL_PROPERTIES_MAIL_SMTP_AUTH: true
+
+      SPRING_MAIL_PROPERTIES_MAIL_SMTP_STARTTLS_ENABLE: true
+
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://eureka-server:8761/eureka
+
+    networks:
+
+      - smartamal-network
+
+# =====================================================
+# DEVICE SERVICE
+# =====================================================
+
+  # =====================================================
+# DEVICE SERVICE
+# =====================================================
+
+  device-service:
+
+    build:
+      context: ./device-service
+
+    container_name: device-service
+
+    hostname: device-service
+
+    restart: unless-stopped
+
+    depends_on:
+
+      - mysql
+
+      - mosquitto
+
+      - notification-service
+
+      - eureka-server
+
+    ports:
+
+      - "8081:8081"
+
+    environment:
+
+      SPRING_APPLICATION_NAME: device-service
+
+      SERVER_PORT: 8081
+
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/db_device
+
+      SPRING_DATASOURCE_USERNAME: root
+
+      SPRING_DATASOURCE_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+
+      MQTT_BROKER: tcp://mosquitto:1883
+
+      MQTT_CLIENT_ID: device-service
+
+      MQTT_TOPIC_DONATION: smartamal/donation
+
+      MQTT_TOPIC_STATUS: smartamal/status
+
+      MQTT_TOPIC_SECURITY: smartamal/security
+
+      NOTIFICATION_SERVICE_URL: http://notification-service:8083/api/notifications
+
+      NOTIFICATION_DEFAULT_EMAIL: ${NOTIFICATION_EMAIL}
+
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://eureka-server:8761/eureka
+
+      JWT_SECRET: ${JWT_SECRET}
+
+    networks:
+
+      - smartamal-network
+
+# =====================================================
+# ACCESS CONTROL SERVICE
+# =====================================================
+
+  # =====================================================
+# ACCESS CONTROL SERVICE
+# =====================================================
+
+  access-control-service:
+
+    build:
+      context: ./access-control-service
+
+    container_name: access-control-service
+
+    hostname: access-control-service
+
+    restart: unless-stopped
+
+    depends_on:
+
+      - mysql
+
+      - mosquitto
+
+      - notification-service
+
+      - eureka-server
+
+    ports:
+
+      - "8084:8084"
+
+    environment:
+
+      SPRING_APPLICATION_NAME: access-control-service
+
+      SERVER_PORT: 8084
+
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/db_access_control
+
+      SPRING_DATASOURCE_USERNAME: root
+
+      SPRING_DATASOURCE_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+
+      MQTT_BROKER: tcp://mosquitto:1883
+
+      MQTT_CLIENT_ID: access-control-service
+
+      MQTT_TOPIC_RFID: smartamal/rfid
+
+      MQTT_TOPIC_SECURITY: smartamal/security
+
+      NOTIFICATION_SERVICE_URL: http://notification-service:8083/api/notifications
+
+      NOTIFICATION_DEFAULT_EMAIL: ${NOTIFICATION_EMAIL}
+
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://eureka-server:8761/eureka
+
+      JWT_SECRET: ${JWT_SECRET}
+
+    networks:
+
+      - smartamal-network
+
+      # =====================================================
+# PROMETHEUS
+# =====================================================
+
+  prometheus:
+
+    image: prom/prometheus:latest
+
+    container_name: prometheus
+
+    restart: unless-stopped
+
+    ports:
+
+      - "9091:9090"
+
+    volumes:
+
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
+
+      - prometheus-data:/prometheus
+
+    depends_on:
+
+      - auth-service
+
+      - device-service
+
+      - notification-service
+
+      - access-control-service
+
+      - api-gateway
+
+      - eureka-server
+
+    networks:
+
+      - smartamal-network
+
+# =====================================================
+# GRAFANA
+# =====================================================
+
   grafana:
+
     image: grafana/grafana:latest
-    container_name: smartamal-grafana
-    
-    environment:
-      GF_SECURITY_ADMIN_USER: admin
-      GF_SECURITY_ADMIN_PASSWORD: admin_password
-      GF_INSTALL_PLUGINS: grafana-piechart-panel
-      GF_USERS_ALLOW_SIGN_UP: 'false'
-    
+
+    container_name: grafana
+
+    restart: unless-stopped
+
     ports:
+
       - "3000:3000"
-    
+
+    environment:
+
+      GF_SECURITY_ADMIN_USER: admin
+
+      GF_SECURITY_ADMIN_PASSWORD: admin123
+
     volumes:
-      # Provisioning - dashboards
-      - ./monitoring/grafana/dashboards:/etc/grafana/provisioning/dashboards
-      
-      # Provisioning - datasources
-      - ./monitoring/grafana/datasources:/etc/grafana/provisioning/datasources
-      
-      # Data persistence
-      - grafana_data:/var/lib/grafana
-    
-    networks:
-      - smartamal-network
-    
+
+      - grafana-data:/var/lib/grafana
+
     depends_on:
+
       - prometheus
-      - elasticsearch
-    
-    healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3000/api/health"]
-      timeout: 10s
-      retries: 5
-    
-    restart: unless-stopped
 
-  # ============================================
-  # 5. ELASTICSEARCH - LOG STORAGE & SEARCH
-  # ============================================
+    networks:
+
+      - smartamal-network
+
+      # =====================================================
+# ELASTICSEARCH
+# =====================================================
+
   elasticsearch:
-    image: docker.elastic.co/elasticsearch/elasticsearch:8.0.0
-    container_name: smartamal-elasticsearch
-    
+
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.13.4
+
+    container_name: elasticsearch
+
+    restart: unless-stopped
+
     environment:
-      - discovery.type=single-node
-      - xpack.security.enabled=false
-      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
-    
+
+      discovery.type: single-node
+
+      ES_JAVA_OPTS: "-Xms512m -Xmx512m"
+
+      xpack.security.enabled: "false"
+
     ports:
+
       - "9200:9200"
-      - "9300:9300"
-    
+
     volumes:
-      # Elasticsearch configuration
+
       - ./elasticsearch/elasticsearch.yml:/usr/share/elasticsearch/config/elasticsearch.yml
-      
-      # Data persistence
-      - elasticsearch_data:/usr/share/elasticsearch/data
-    
-    networks:
-      - smartamal-network
-    
-    healthcheck:
-      test: ["CMD-SHELL", "curl -s http://localhost:9200 >/dev/null || exit 1"]
-      timeout: 10s
-      retries: 5
-    
-    restart: unless-stopped
 
-  # ============================================
-  # 6. LOGSTASH - LOG PROCESSING & PIPELINE
-  # ============================================
+      - elasticsearch-data:/usr/share/elasticsearch/data
+
+    networks:
+
+      - smartamal-network
+
+# =====================================================
+# LOGSTASH
+# =====================================================
+
   logstash:
-    image: docker.elastic.co/logstash/logstash:8.0.0
-    container_name: smartamal-logstash
-    
-    environment:
-      - "LS_JAVA_OPTS=-Xmx256m -Xms256m"
-    
+
+    image: docker.elastic.co/logstash/logstash:8.13.4
+
+    container_name: logstash
+
+    restart: unless-stopped
+
+    depends_on:
+
+      - elasticsearch
+
     ports:
+
       - "5000:5000"
-      - "5044:5044"      # Beats input
-    
+
+      - "9600:9600"
+
     volumes:
-      # Logstash pipeline configuration
+
       - ./logstash/pipeline/logstash.conf:/usr/share/logstash/pipeline/logstash.conf
-      
-      # Logstash data
-      - logstash_data:/usr/share/logstash/data
-    
-    networks:
-      - smartamal-network
-    
-    depends_on:
-      - elasticsearch
-    
-    restart: unless-stopped
 
-  # ============================================
-  # 7. KIBANA - LOG VISUALIZATION & ANALYTICS
-  # ============================================
-  kibana:
-    image: docker.elastic.co/kibana/kibana:8.0.0
-    container_name: smartamal-kibana
-    
     environment:
-      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
-    
-    ports:
-      - "5601:5601"
-    
-    volumes:
-      # Kibana configuration
-      - ./kibana/kibana.yml:/usr/share/kibana/config/kibana.yml
-    
+
+      LS_JAVA_OPTS: "-Xms256m -Xmx256m"
+
     networks:
+
       - smartamal-network
-    
+
+# =====================================================
+# KIBANA
+# =====================================================
+
+  kibana:
+
+    image: docker.elastic.co/kibana/kibana:8.13.4
+
+    container_name: kibana
+
+    restart: unless-stopped
+
     depends_on:
+
       - elasticsearch
-    
-    healthcheck:
-      test: ["CMD-SHELL", "curl -s http://localhost:5601/api/status >/dev/null || exit 1"]
-      timeout: 10s
-      retries: 5
-    
-    restart: unless-stopped
 
-  # ============================================
-  # 8. NGINX - REVERSE PROXY
-  # ============================================
-  nginx:
-    image: nginx:alpine
-    container_name: smartamal-nginx
-    
     ports:
-      - "80:80"
-      # - "443:443"      # Uncomment untuk HTTPS
-    
+
+      - "5601:5601"
+
     volumes:
-      # Nginx configuration
-      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
-      
-      # SSL certificates (opsional untuk production)
-      # - ./nginx/ssl:/etc/nginx/ssl:ro
-    
+
+      - ./kibana/kibana.yml:/usr/share/kibana/config/kibana.yml
+
     networks:
+
       - smartamal-network
-    
-    depends_on:
-      - auth-service
-      - device-service
-    
-    healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost/health"]
-      timeout: 10s
-      retries: 5
-    
+
+# =====================================================
+# NGINX
+# =====================================================
+
+  nginx:
+
+    image: nginx:latest
+
+    container_name: nginx
+
     restart: unless-stopped
 
-  # ============================================
-  # BACKEND SERVICES (JAVA)
-  # ============================================
-  # Note: Uncomment dan configure berikut jika ingin run via docker-compose
-  # Sesuaikan dengan Dockerfile di masing-masing service
+    depends_on:
 
-  # eureka-server:
-  #   build:
-  #     context: ./eureka-server
-  #     dockerfile: Dockerfile
-  #   container_name: smartamal-eureka-server
-  #   environment:
-  #     SPRING_APPLICATION_NAME: eureka-server
-  #   ports:
-  #     - "8761:8761"
-  #   networks:
-  #     - smartamal-network
-  #   restart: unless-stopped
+      - api-gateway
 
-  # auth-service:
-  #   build:
-  #     context: ./auth-service
-  #     dockerfile: Dockerfile
-  #   container_name: smartamal-auth-service
-  #   environment:
-  #     SPRING_APPLICATION_NAME: auth-service
-  #     SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/db_auth
-  #   ports:
-  #     - "8081:8081"
-  #   depends_on:
-  #     - mysql
-  #     - eureka-server
-  #   networks:
-  #     - smartamal-network
-  #   restart: unless-stopped
+    ports:
 
-  # device-service:
-  #   build:
-  #     context: ./device-service
-  #     dockerfile: Dockerfile
-  #   container_name: smartamal-device-service
-  #   environment:
-  #     SPRING_APPLICATION_NAME: device-service
-  #     SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/db_device
-  #   ports:
-  #     - "8082:8082"
-  #   depends_on:
-  #     - mysql
-  #     - eureka-server
-  #     - mosquitto
-  #   networks:
-  #     - smartamal-network
-  #   restart: unless-stopped
+      - "80:80"
 
-# ============================================
-# NETWORKS
-# ============================================
-networks:
-  smartamal-network:
-    driver: bridge
+    volumes:
 
-# ============================================
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+
+    networks:
+
+      - smartamal-network
+
+      # =====================================================
 # VOLUMES
-# ============================================
-volumes:
-  mysql_data:
-  mosquitto_data:
-  mosquitto_logs:
-  prometheus_data:
-  grafana_data:
-  elasticsearch_data:
-  logstash_data:
+# =====================================================
 
-# ============================================
-# NOTES
-# ============================================
-# 1. Update passwords untuk production (MySQL root, Grafana admin)
-# 2. Services default ports:
-#    - MySQL: 3306
-#    - MQTT: 1883
-#    - Prometheus: 9090
-#    - Grafana: 3000
-#    - Elasticsearch: 9200
-#    - Kibana: 5601
-#    - Nginx: 80
-#
-# 3. Akses services:
-#    - Grafana: http://localhost:3000 (user: admin, password: admin_password)
-#    - Prometheus: http://localhost:9090
-#    - Kibana: http://localhost:5601
-#    - Nginx: http://localhost
-#
-# 4. Untuk uncomment Java services:
-#    - Update path context dan dockerfile sesuai struktur folder
-#    - Pastikan Java services sudah di-build (mvn clean package)
-#    - Update database URLs sesuai dengan MySQL configuration
-#
-# 5. Commands:
-#    - Start: docker-compose up -d
-#    - Stop: docker-compose down
-#    - View logs: docker-compose logs -f [service_name]
-#    - Rebuild: docker-compose up -d --build
-#    - Remove volumes: docker-compose down -v
-#
-# 6. Production considerations:
-#    - Use environment variables untuk sensitive data
-#    - Enable HTTPS dengan reverse proxy
-#    - Setup monitoring & alerting
-#    - Configure logging & log rotation
-#    - Setup backup & disaster recovery
-#    - Use named volumes untuk persistence
-#    - Configure resource limits
+volumes:
+
+  mysql-data:
+
+  mosquitto-data:
+
+  mosquitto-log:
+
+  prometheus-data:
+
+  grafana-data:
+
+  elasticsearch-data:
+
+# =====================================================
+# NETWORK
+# =====================================================
+
+networks:
+
+  smartamal-network:
+
+    driver: bridge

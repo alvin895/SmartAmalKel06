@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<configuration>
+
+    <!-- ================================================= -->
+    <!-- SPRING BOOT DEFAULT LOGGING                        -->
+    <!-- ================================================= -->
+
+    <include resource="org/springframework/boot/logging/logback/base.xml"/>
+
+    <!-- ================================================= -->
+    <!-- LOGSTASH HOST                                     -->
+    <!-- ================================================= -->
+
+    <property
+            name="LOGSTASH_HOST"
+            value="${LOGSTASH_HOST:-logstash:5000}" />
+
+    <!-- ================================================= -->
+    <!-- LOGSTASH APPENDER                                 -->
+    <!-- ================================================= -->
+
+    <appender
+            name="LOGSTASH"
+            class="net.logstash.logback.appender.LogstashTcpSocketAppender">
+
+        <destination>${LOGSTASH_HOST}</destination>
+
+        <encoder
+                class="net.logstash.logback.encoder.LoggingEventCompositeJsonEncoder">
+
+            <providers>
+
+                <!-- Timestamp -->
+
+                <timestamp>
+                    <timeZone>UTC</timeZone>
+                </timestamp>
+
+                <!-- JSON Log -->
+
+                <pattern>
+
+                    <pattern>
+
+                        {
+                            "service":"${spring.application.name:-unknown-service}",
+                            "level":"%level",
+                            "thread":"%thread",
+                            "logger":"%logger",
+                            "message":"%message"
+                        }
+
+                    </pattern>
+
+                </pattern>
+
+                <!-- MDC -->
+
+                <mdc/>
+
+                <!-- Method Arguments -->
+
+                <arguments/>
+
+                <!-- Stacktrace -->
+
+                <stackTrace/>
+
+            </providers>
+
+        </encoder>
+
+    </appender>
+
+    <!-- ================================================= -->
+    <!-- ROOT LOGGER                                       -->
+    <!-- ================================================= -->
+
+    <root level="INFO">
+
+        <!-- Console -->
+
+        <appender-ref ref="CONSOLE"/>
+
+        <!-- Logstash -->
+
+        <appender-ref ref="LOGSTASH"/>
+
+    </root>
+
+</configuration>
