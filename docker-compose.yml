@@ -50,6 +50,25 @@ services:
 
       - smartamal-network
 
+  adminer:
+
+    image: adminer:latest
+
+    container_name: adminer
+
+    restart: unless-stopped
+
+    depends_on:
+
+      - mysql
+
+    ports:
+
+      - "8085:8080"
+
+    networks:
+
+      - smartamal-network
 # =====================================================
 # MQTT
 # =====================================================
@@ -264,6 +283,7 @@ services:
       SPRING_MAIL_USERNAME: ${MAIL_USERNAME}
 
       SPRING_MAIL_PASSWORD: ${MAIL_PASSWORD}
+      NOTIFICATION_EMAIL: ${NOTIFICATION_EMAIL}
 
       SPRING_MAIL_PROPERTIES_MAIL_SMTP_AUTH: true
 

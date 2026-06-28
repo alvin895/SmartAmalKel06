@@ -18,5 +18,4 @@ public class NotificationRequest {
 
     @Email(message = "Format email tidak valid")
     private String recipientEmail;
-
 }

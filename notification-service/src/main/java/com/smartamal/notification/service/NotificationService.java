@@ -3,6 +3,7 @@ package com.smartamal.notification.service;
 import java.util.List;
 import java.util.stream.Collectors;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.stereotype.Service;
@@ -23,7 +24,8 @@ public class NotificationService {
     private final NotificationRepository notificationRepository;
 
     private final JavaMailSender mailSender;
-
+    @Value("${notification.recipients}")
+    private String recipients;
     // =====================================================
     // CREATE NOTIFICATION
     // =====================================================
@@ -40,40 +42,36 @@ public class NotificationService {
 
         Notification saved = notificationRepository.save(notification);
 
-        if (request.getRecipientEmail() != null &&
-                !request.getRecipientEmail().isBlank()) {
+         try {
 
-            try {
+    sendEmail(
+            request.getRecipientEmail(),
+            request.getTitle(),
+            request.getMessage());
 
-                sendEmail(
-                        request.getRecipientEmail(),
-                        request.getTitle(),
-                        request.getMessage());
+    saved.setStatus("SENT");
 
-                saved.setStatus("SENT");
+    notificationRepository.save(saved);
 
-                notificationRepository.save(saved);
+    log.info("Email berhasil dikirim.");
 
-                log.info("Email berhasil dikirim ke {}",
-                        request.getRecipientEmail());
+} catch (Exception e) {
 
-            } catch (Exception e) {
+    e.printStackTrace();
 
-                e.printStackTrace();
+    log.error(
+            "Gagal mengirim email : {}",
+            e.getMessage());
 
-                log.error(
-                        "Gagal mengirim email : {}",
-                        e.getMessage());
+    saved.setStatus("FAILED");
 
-                saved.setStatus("FAILED");
+    notificationRepository.save(saved);
 
-                notificationRepository.save(saved);
-            }
+}
 
-        }
+return mapToResponse(saved);
 
-        return mapToResponse(saved);
-    }
+}
 
     // =====================================================
     // GET ALL
@@ -155,23 +153,30 @@ public class NotificationService {
     // =====================================================
 
     private void sendEmail(
-            String to,
-            String subject,
-            String message) {
+        String to,
+        String subject,
+        String message) {
 
-        SimpleMailMessage mail =
-                new SimpleMailMessage();
+    SimpleMailMessage mail =
+            new SimpleMailMessage();
 
-        mail.setTo(to);
+    if (to == null || to.isBlank()) {
 
-        mail.setSubject(subject);
+        mail.setTo(recipients.split(","));
 
-        mail.setText(message);
+    } else {
 
-        mailSender.send(mail);
+        mail.setTo(to.split(","));
 
     }
 
+    mail.setSubject(subject);
+
+    mail.setText(message);
+
+    mailSender.send(mail);
+
+}
     // =====================================================
     // ENTITY -> RESPONSE
     // =====================================================
