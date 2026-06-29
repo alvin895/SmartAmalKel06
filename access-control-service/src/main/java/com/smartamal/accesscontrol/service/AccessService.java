@@ -4,8 +4,10 @@ import java.util.List;
 
 import org.springframework.stereotype.Service;
 
+import com.smartamal.accesscontrol.dto.AccessDTO;
 import com.smartamal.accesscontrol.model.AccessLog;
 import com.smartamal.accesscontrol.model.RFIDCard;
+import com.smartamal.accesscontrol.mqtt.MqttPublisher;
 import com.smartamal.accesscontrol.repository.AccessRepository;
 import com.smartamal.accesscontrol.repository.RFIDCardRepository;
 
@@ -20,6 +22,8 @@ public class AccessService {
     private final RFIDCardRepository rfidCardRepository;
 
     private final NotificationHelper notificationHelper;
+
+    private final MqttPublisher mqttPublisher;
 
     // =====================================================
     // CREATE RFID CARD
@@ -86,6 +90,40 @@ public class AccessService {
 
         rfidCardRepository.delete(card);
 
+    }
+
+    // =====================================================
+    // OPEN BOX FROM FLUTTER
+    // =====================================================
+
+    public AccessDTO openBox(AccessDTO request) {
+
+        request.setCommand("OPEN");
+
+        mqttPublisher.publishCommand(request);
+
+        request.setStatus("SUCCESS");
+
+        request.setMessage("Kotak Amal berhasil dibuka.");
+
+        return request;
+    }
+
+    // =====================================================
+    // CLOSE BOX FROM FLUTTER
+    // =====================================================
+
+    public AccessDTO closeBox(AccessDTO request) {
+
+        request.setCommand("CLOSE");
+
+        mqttPublisher.publishCommand(request);
+
+        request.setStatus("SUCCESS");
+
+        request.setMessage("Kotak Amal berhasil ditutup.");
+
+        return request;
     }
 
     // =====================================================

@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.smartamal.accesscontrol.dto.AccessDTO;
 import com.smartamal.accesscontrol.model.AccessLog;
 import com.smartamal.accesscontrol.model.RFIDCard;
 import com.smartamal.accesscontrol.service.AccessService;
@@ -98,6 +99,30 @@ public class AccessController {
         return ResponseEntity.ok(
                 accessService.saveSecurityEvent());
     }
+
+        // =====================================================
+        // OPEN BOX FROM FLUTTER
+        // =====================================================
+
+        @PostMapping("/open")
+        public ResponseEntity<AccessDTO> openBox(
+                @RequestBody AccessDTO request) {
+
+        return ResponseEntity.ok(
+                accessService.openBox(request));
+        }
+
+        // =====================================================
+        // CLOSE BOX FROM FLUTTER
+        // =====================================================
+
+        @PostMapping("/close")
+        public ResponseEntity<AccessDTO> closeBox(
+                @RequestBody AccessDTO request) {
+
+        return ResponseEntity.ok(
+                accessService.closeBox(request));
+        }
 
     // =====================================================
     // ACCESS LOG
