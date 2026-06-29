@@ -27,7 +27,7 @@ scrape_configs:
     static_configs:
 
       - targets:
-          - 'api-gateway:8080'
+          - 'api-gateway:9090'
 
   # ==========================================
   # AUTH SERVICE

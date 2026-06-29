@@ -179,7 +179,7 @@ services:
     environment:
 
       SPRING_APPLICATION_NAME: api-gateway
-
+      TZ: Asia/Jakarta
       SERVER_PORT: 9090
 
       EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://eureka-server:8761/eureka
@@ -267,6 +267,7 @@ services:
     environment:
 
       SPRING_APPLICATION_NAME: notification-service
+      TZ: Asia/Jakarta
 
       SERVER_PORT: 8083
 
@@ -331,7 +332,7 @@ services:
     environment:
 
       SPRING_APPLICATION_NAME: device-service
-
+      TZ: Asia/Jakarta
       SERVER_PORT: 8081
 
       SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/db_device
@@ -400,6 +401,7 @@ services:
       SPRING_APPLICATION_NAME: access-control-service
 
       SERVER_PORT: 8084
+      TZ: Asia/Jakarta
 
       SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/db_access_control
 
